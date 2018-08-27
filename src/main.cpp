@@ -8,24 +8,30 @@
 #include <GLFW/glfw3.h>
 #include "Shader.h"
 #include "SpaceTime.h"
+#include <string>
+#include <sstream>
 
 #define PI 3.14
 
 // settings
 const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
+const unsigned int SCR_HEIGHT = 800;
 GLFWwindow* window;
 
 
 std::vector<glm::vec2> points;
 Quadtree* quadtree;
 QuadtreeDatapoint* quadtreePoints;
+Shader ourShader;
 
 bool active= false;
 int space_state = GLFW_RELEASE;
 
-float bhx = 0.3, bhy = 0;
+int D = 3;
+
+float bhx = 0, bhy = 0, bhz = 0;
 float rate;
+float rs = 0.01;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -62,17 +68,49 @@ int createWindow() {
     }
 }
 
+void loadShader() {
+    if (D == 2) {
+        ourShader = Shader("vert2.vs", "frag2.fs"); 
+    }
+    if (D == 3) {
+        ourShader = Shader("vert3.vs", "frag3.fs"); 
+    }
+}
+
 int main2()
 {
 	createWindow();
- 	Shader ourShader("vert.vs", "frag.fs"); 
+ 	loadShader(); 
 
  	quadtree->setup_leafs();
  	quadtree->setup();
 
+    int nbFrames;
+    float lastTime, currentTime = 0;
+    std::ostringstream display;
     while (!glfwWindowShouldClose(window))
     {
         processInput(window);
+
+        currentTime  = glfwGetTime();
+        nbFrames++;
+        if ( currentTime - lastTime >= 1.0 ){ // If last prinf() was more than 1 sec ago
+            // printf and reset timer
+            display.str("");
+            display.clear();
+            display  << nbFrames;
+            glfwSetWindowTitle(window,display.str().c_str());
+            nbFrames = 0;
+            lastTime += 1.0;
+        }
+
+        // if (rs < 0.01) 
+        // {
+        //     active = false;
+        // }
+        // else {
+        //     active = true;
+        // }
 
         glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -89,11 +127,14 @@ int main2()
         int timeLocation = glGetUniformLocation(ourShader.ID, "time");
         glUniform1f(timeLocation,timeValue);
 
+        int radiusLocation = glGetUniformLocation(ourShader.ID, "rs");
+        glUniform1f(radiusLocation,rs);
+
         int activeLocation = glGetUniformLocation(ourShader.ID,"bh_active");
         glUniform1i(activeLocation,active);
 
         int bhLocation = glGetUniformLocation(ourShader.ID, "bh");
-        glUniform2f(bhLocation, bhx, bhy);
+        glUniform3f(bhLocation, bhx, bhy, bhz);
 
         // std::cout << greenValue << std::endl;
 
@@ -124,6 +165,15 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS ) {
         bhy -= rate;
     }
+    if (glfwGetKey(window, GLFW_KEY_PAGE_UP) == GLFW_PRESS ) {
+        rs += rate;
+        std::cout << rs << std::endl;
+    }
+    if (glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_PRESS ) {
+        rs -= rate;
+        rs = std::max(rs, 0.001f);
+        std::cout << rs << std::endl;
+    }
     if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS ) {
         bhx -= rate;
     }
@@ -140,9 +190,33 @@ void processInput(GLFWwindow *window)
             space_state = GLFW_PRESS;
             // std::cout << active << std::endl;
         }
+        if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
+            space_state = GLFW_PRESS;
+            loadShader();
+            std::cout << "Shader loaded" << std::endl;
+        }
+        if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
+            space_state = GLFW_PRESS;
+            D = 2;
+            loadShader();
+            std::cout << "2d mode" << std::endl;
+        }
+        if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
+            space_state = GLFW_PRESS;
+            D = 3;
+            bhx = 0, bhy = 0;
+            loadShader();
+            std::cout << "3d mode" << std::endl;
+        }
     }
     else {
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_RELEASE && glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE) {
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_RELEASE &&
+            glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE &&
+            glfwGetKey(window, GLFW_KEY_R) == GLFW_RELEASE &&
+            glfwGetKey(window, GLFW_KEY_2) == GLFW_RELEASE &&
+            glfwGetKey(window, GLFW_KEY_3) == GLFW_RELEASE &&
+            glfwGetKey(window, GLFW_KEY_PAGE_UP) == GLFW_RELEASE &&
+            glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_RELEASE) {
             space_state = GLFW_RELEASE;
         }
     }
