@@ -11,8 +11,11 @@ uniform vec3 player = vec3(0., 0., -4.);
 uniform float rs = 0.1;
 
 uniform sampler2D texGalaxy1;
+uniform sampler2D texGalaxy2;
 
 uniform bool bh_active = false;
+
+uniform bool optimizeFarRays = true;
 
 const float PI = 3.14159265359;
 const float TWOPI = 6.28318530718;
@@ -23,7 +26,7 @@ vec3 toGamma(vec3 color) {
 }
 
 vec3 toLinear(vec3 color) {
-  return pow(color, vec3(1.2));
+  return pow(color, vec3(2.0));
 }
 
 vec3 panoramaColor( vec3 pos)
@@ -32,7 +35,13 @@ vec3 panoramaColor( vec3 pos)
     mod(0.5 - atan(pos.z, pos.x) / TWOPI + bh.x, 1),
     mod(0.5 - asin(pos.y) / PI + bh.y, 1)
   );
-  return toLinear(texture2D(texGalaxy1, uv).rgb);
+  if (bh_active) {
+  	return toLinear(texture2D(texGalaxy1, uv).rgb);
+  }
+  else {
+  	return toLinear(texture2D(texGalaxy2, uv).rgb);
+  }
+  	
 }
 
 vec3 rotate(vec3 x, vec3 u, float t) {
@@ -58,6 +67,16 @@ float f(float r, float J) {
 	return wr*wpr*(1 - 3/2*wr*J2/r2) + w3*J2/r3;
 }
 
+//impact parameter
+float b(vec3 rayPos, vec3 rayDir) {
+	vec3 rv = blackHole - rayPos;
+	return length( rv - dot(rayDir,rv)*rayDir);
+}
+
+float defl(float r, float r0) {
+	return asin(r0/r) - 0.5*rs/r0*(2-sqrt(1-(r0/r)*(r0/r)) - sqrt((r-r0)/(r+r0))); 
+}
+
 // vec2 illusion(vec3 pos, float t) {
 vec4 raytrace(vec3 rayPos, vec3 rayDir) {
 	vec2 rv = (rayPos-blackHole).xz;
@@ -66,27 +85,33 @@ vec4 raytrace(vec3 rayPos, vec3 rayDir) {
 	vec2 ur = normalize(rv);
 	vec2 ut = vec2(-ur.y, ur.x);
 
-	vec3 v3 = normalize(rayDir);
-	vec2 v = vec2(length(v3.xy), v3.z);
+	vec2 v = vec2(length(rayDir.xy), rayDir.z);
 	float theta = -3.14/2;
 
 	float rp = dot(v,ur);
 	float J = r/w(r)*dot(v,ut);
 
+	float bv = b(rayPos, rayDir);
+
 	if (bh_active) {
-		float h = 0., ht = 0.;
-		float eps = (0.2+rs);
-		int i = 0;
-		while (ht < 40 && r < 25 && i < 200) {
-			if (r < rs) return vec4(r, theta, 0, 0);
+		if (bv > 30*rs && optimizeFarRays) {
+			theta = atan(v.y, v.x) - defl(r,bv);
+		}
+		else {
+			float h = 0., ht = 0.;
+			float eps = (0.2+rs)*w(r+0.0001);
+			int i = 0;
+			while (ht < 40 && r < 25 && i < 200) {
+				if (r < rs) return vec4(r, theta, 0, 0);
 
-			h = min( 40 - ht , eps*w(r+0.0001));
+				h = min( 40 - ht , eps*w(r+0.0001));
 
-			rp += h*f(r,J);
-			r += h*rp;
-			theta += h*J*w(r)/(r*r);
-			ht += h;
-			i++;
+				rp += h*f(r,J);
+				r += h*rp;
+				theta += h*J*w(r)/(r*r);
+				ht += h;
+				i++;
+			}
 		}
 	}
 	else {
@@ -97,6 +122,12 @@ vec4 raytrace(vec3 rayPos, vec3 rayDir) {
 	if (bh_active && rs <= 0.03) {
 		float t = (max(rs,0.01) - 0.01)/0.02;
 		theta = t*theta + (1-t)*atan(v.y, v.x);
+	}
+
+	//interpolation for far rays
+	if (bh_active && bv > 15*rs && optimizeFarRays) {
+		float t = (min(bv,30*rs) - 15*rs)/(15*rs);
+		theta = (1-t)*theta + t*atan(v.y, v.x);
 	}
 
 	float phi = atan(rayDir.y, rayDir.x);
@@ -112,8 +143,8 @@ vec4 colorAt(vec4 rdir, float t) {
 	float r = rdir.x;
 	vec3 dir = rdir.yzw;
 	d =  time - t;
-	if (r <= rs && bh_active && rs >= 0.01) {
-		float f = 0.;
+	if (r <= rs && bh_active && rs >= 0.03) {
+		float f = 0.0;
 		f = sqrt(f);
 		return vec4(f,f,f,1);
 	}
@@ -128,6 +159,7 @@ vec4 colorAt(vec4 rdir, float t) {
 void main()
 {
 	vec3 ray = vec3(position.x, position.y, -player.z/2);
+	ray = normalize(ray);
 	vec4 rdir = raytrace(player, ray);
 	FragColor = vec4(colorAt(rdir,0));
 }

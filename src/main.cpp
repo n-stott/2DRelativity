@@ -42,6 +42,7 @@ float playerDistance = -4;
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
 
+unsigned int texture0, texture1;
 
 int createWindow() {
 	 // glfw: initialize and configure
@@ -53,6 +54,7 @@ int createWindow() {
 
     // glfw window creation
     // --------------------
+    glfwWindowHint(GLFW_SAMPLES, 4);
     window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
     if (window == NULL)
     {
@@ -62,8 +64,7 @@ int createWindow() {
     }
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-
-    glfwSetInputMode(window, GLFW_STICKY_KEYS, 1);
+    // glfwSetInputMode(window, GLFW_STICKY_KEYS, 1);
 
     // glad: load all OpenGL function pointers
     // ---------------------------------------
@@ -83,6 +84,35 @@ void loadShader() {
     }
 }
 
+void loadTexture(const std::string& file, unsigned int& texture) {
+    // load and create a texture 
+    // -------------------------
+    
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture); // all upcoming GL_TEXTURE_2D operations now have effect on this texture object
+    // set the texture wrapping parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);   // set texture wrapping to GL_REPEAT (default wrapping method)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    // set texture filtering parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // load image, create texture and generate mipmaps
+    int width, height, nrChannels;
+    // The FileSystem::getPath(...) is part of the GitHub repository so we can find files on any IDE/platform; replace it with your own image path.
+    unsigned char *data = stbi_load(FileSystem::getPath(file).c_str(), &width, &height, &nrChannels, 0);
+    if (data)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+    {
+        std::cout << "Failed to load texture" << std::endl;
+    }
+    stbi_image_free(data);   
+
+}
+
 int main2()
 {
 	createWindow();
@@ -96,33 +126,12 @@ int main2()
     std::ostringstream display;
 
 
+    loadTexture("assets/galaxy1.png", texture0);
+    loadTexture("assets/galaxy2.png", texture1);
 
-    // load and create a texture 
-    // -------------------------
-    unsigned int texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture); // all upcoming GL_TEXTURE_2D operations now have effect on this texture object
-    // set the texture wrapping parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);   // set texture wrapping to GL_REPEAT (default wrapping method)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    // set texture filtering parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    // load image, create texture and generate mipmaps
-    int width, height, nrChannels;
-    // The FileSystem::getPath(...) is part of the GitHub repository so we can find files on any IDE/platform; replace it with your own image path.
-    unsigned char *data = stbi_load(FileSystem::getPath("assets/galaxy1.png").c_str(), &width, &height, &nrChannels, 0);
-    if (data)
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-    }
-    else
-    {
-        std::cout << "Failed to load texture" << std::endl;
-    }
-    stbi_image_free(data);
-
+    ourShader.use();
+    ourShader.setInt("texGalaxy1", 0);
+    ourShader.setInt("texGalaxy2", 1);
 
     while (!glfwWindowShouldClose(window))
     {
@@ -150,6 +159,11 @@ int main2()
 
         glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture0);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, texture1);
 
         // glBindTexture(GL_TEXTURE_2D, texture);
         ourShader.use();
@@ -220,7 +234,19 @@ void processInput(GLFWwindow *window)
     }
     if (glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_PRESS ) {
         rs -= rate;
-        rs = std::max(rs, 0.001f);
+        rs = std::max(rs, 0.05f);
+    }
+    if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
+        loadShader();
+    }
+    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
+        D = 2;
+        loadShader();
+    }
+    if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
+        D = 3;
+        bhx = 0, bhy = 0;
+        loadShader();
     }
     if (space_state == GLFW_RELEASE) {
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS){
@@ -229,18 +255,6 @@ void processInput(GLFWwindow *window)
         if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
             active = !active;
         }
-        if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
-            loadShader();
-        }
-        if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
-            D = 2;
-            loadShader();
-        }
-        if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
-            D = 3;
-            bhx = 0, bhy = 0;
-            loadShader();
-        }
         space_state = GLFW_PRESS;
     }
     else {
@@ -248,11 +262,7 @@ void processInput(GLFWwindow *window)
             glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE &&
             glfwGetKey(window, GLFW_KEY_R) == GLFW_RELEASE &&
             glfwGetKey(window, GLFW_KEY_2) == GLFW_RELEASE &&
-            glfwGetKey(window, GLFW_KEY_3) == GLFW_RELEASE &&
-            glfwGetKey(window, GLFW_KEY_PAGE_UP) == GLFW_RELEASE &&
-            glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_RELEASE &&
-            glfwGetKey(window, GLFW_KEY_HOME) == GLFW_RELEASE &&
-            glfwGetKey(window, GLFW_KEY_END) == GLFW_RELEASE) {
+            glfwGetKey(window, GLFW_KEY_3) == GLFW_RELEASE) {
             space_state = GLFW_RELEASE;
         }
     }
