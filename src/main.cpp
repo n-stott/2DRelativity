@@ -11,6 +11,11 @@
 #include <string>
 #include <sstream>
 
+#include <learnopengl/filesystem.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 #define PI 3.14
 
 // settings
@@ -31,7 +36,8 @@ int D = 3;
 
 float bhx = 0, bhy = 0, bhz = 0;
 float rate;
-float rs = 0.01;
+float rs = 0.1;
+float playerDistance = -4;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -88,6 +94,36 @@ int main2()
     int nbFrames;
     float lastTime, currentTime = 0;
     std::ostringstream display;
+
+
+
+    // load and create a texture 
+    // -------------------------
+    unsigned int texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture); // all upcoming GL_TEXTURE_2D operations now have effect on this texture object
+    // set the texture wrapping parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);   // set texture wrapping to GL_REPEAT (default wrapping method)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    // set texture filtering parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // load image, create texture and generate mipmaps
+    int width, height, nrChannels;
+    // The FileSystem::getPath(...) is part of the GitHub repository so we can find files on any IDE/platform; replace it with your own image path.
+    unsigned char *data = stbi_load(FileSystem::getPath("assets/galaxy1.png").c_str(), &width, &height, &nrChannels, 0);
+    if (data)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+    {
+        std::cout << "Failed to load texture" << std::endl;
+    }
+    stbi_image_free(data);
+
+
     while (!glfwWindowShouldClose(window))
     {
         processInput(window);
@@ -115,6 +151,7 @@ int main2()
         glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        // glBindTexture(GL_TEXTURE_2D, texture);
         ourShader.use();
 
         float timeValue = glfwGetTime();
@@ -136,10 +173,11 @@ int main2()
         int bhLocation = glGetUniformLocation(ourShader.ID, "bh");
         glUniform3f(bhLocation, bhx, bhy, bhz);
 
-        // std::cout << greenValue << std::endl;
+        int playerLocation = glGetUniformLocation(ourShader.ID, "player");
+        glUniform3f(playerLocation, 0, 0, playerDistance);
+
 
 		quadtree->render_leafs();
-		// quadtree->render();
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -159,55 +197,51 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE ) {
         rate = 0.001;
     }
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS ) {
-        bhy += rate;
-    }
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS ) {
-        bhy -= rate;
-    }
-    if (glfwGetKey(window, GLFW_KEY_PAGE_UP) == GLFW_PRESS ) {
-        rs += rate;
-        std::cout << rs << std::endl;
-    }
-    if (glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_PRESS ) {
-        rs -= rate;
-        rs = std::max(rs, 0.001f);
-        std::cout << rs << std::endl;
-    }
     if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS ) {
         bhx -= rate;
     }
     if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS ) {
         bhx += rate;
     }
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS ) {
+        bhy += rate;
+    }
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS ) {
+        bhy -= rate;
+    }
+    if (glfwGetKey(window, GLFW_KEY_HOME) == GLFW_PRESS ) {
+        playerDistance += 10*rate;
+    }
+    if (glfwGetKey(window, GLFW_KEY_END) == GLFW_PRESS ) {
+        playerDistance -= 10*rate;
+    }
+    if (glfwGetKey(window, GLFW_KEY_PAGE_UP) == GLFW_PRESS ) {
+        rs += rate;
+    }
+    if (glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_PRESS ) {
+        rs -= rate;
+        rs = std::max(rs, 0.001f);
+    }
     if (space_state == GLFW_RELEASE) {
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS){
             glfwSetWindowShouldClose(window, true);
-            space_state = GLFW_PRESS;
         }
         if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
             active = !active;
-            space_state = GLFW_PRESS;
-            // std::cout << active << std::endl;
         }
         if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
-            space_state = GLFW_PRESS;
             loadShader();
-            std::cout << "Shader loaded" << std::endl;
         }
         if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
-            space_state = GLFW_PRESS;
             D = 2;
             loadShader();
-            std::cout << "2d mode" << std::endl;
         }
         if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
-            space_state = GLFW_PRESS;
             D = 3;
             bhx = 0, bhy = 0;
             loadShader();
-            std::cout << "3d mode" << std::endl;
         }
+        space_state = GLFW_PRESS;
     }
     else {
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_RELEASE &&
@@ -216,7 +250,9 @@ void processInput(GLFWwindow *window)
             glfwGetKey(window, GLFW_KEY_2) == GLFW_RELEASE &&
             glfwGetKey(window, GLFW_KEY_3) == GLFW_RELEASE &&
             glfwGetKey(window, GLFW_KEY_PAGE_UP) == GLFW_RELEASE &&
-            glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_RELEASE) {
+            glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_RELEASE &&
+            glfwGetKey(window, GLFW_KEY_HOME) == GLFW_RELEASE &&
+            glfwGetKey(window, GLFW_KEY_END) == GLFW_RELEASE) {
             space_state = GLFW_RELEASE;
         }
     }
@@ -263,8 +299,8 @@ int main() {
 	}
 
 
-	printf("Inserted points to quadtree\n"); fflush(stdout);
-	printf("Created %ld points\n", points.size()); fflush(stdout);
+	// printf("Inserted points to quadtree\n"); fflush(stdout);
+	// printf("Created %ld points\n", points.size()); fflush(stdout);
 
 	main2();
 }
