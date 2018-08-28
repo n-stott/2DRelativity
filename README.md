@@ -1,6 +1,6 @@
 # 2DRelativity
 
-A little fun with openGL shader to simulate a top-down view of an observer close to a black hole as well as a 3d renderer
+A little fun with openGL shader to simulate a top-down view of an observer close to a black hole as well as a 3d renderer, aiming for a physically correct render
 
 Use arrows to move around black hole and hold shift to move faster
 
