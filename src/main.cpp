@@ -126,8 +126,8 @@ int main2()
     std::ostringstream display;
 
 
-    loadTexture("assets/galaxy1.png", texture0);
-    loadTexture("assets/galaxy2.png", texture1);
+    loadTexture("assets/galaxy2.png", texture0);
+    loadTexture("assets/galaxy1.png", texture1);
 
     ourShader.use();
     ourShader.setInt("texGalaxy1", 0);
@@ -206,10 +206,10 @@ int main2()
 void processInput(GLFWwindow *window)
 {
     if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ) {
-        rate = 0.005;
+        rate = 0.0005;
     }
     if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE ) {
-        rate = 0.001;
+        rate = 0.0001;
     }
     if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS ) {
         bhx -= rate;

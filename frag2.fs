@@ -51,7 +51,7 @@ float wp(float r) {
 
 float f(float r, float J) {
 	// return ( w(r)*wp(r)*( 1 - J*J*w(r)/(r*r)) + 0.5*J*J*w(r)*w(r)* (2*w(r)/(r*r*r) - wp(r)/(r*r) )  );
-	return w(r)*wp(r) * ( 1 - 3/2*w(r)*J*J/(r*r) ) + 3/2*w(r)*w(r)*w(r)*J*J/(r*r*r);
+	return w(r)*wp(r) * ( 1 - 3/2*w(r)*J*J/(r*r) ) + w(r)*w(r)*w(r)*J*J/(r*r*r);
 }
 
 float df(float r, float J) {
@@ -80,10 +80,12 @@ vec2 illusion(vec2 pos, float t) {
 	float thetap = dot(v,ut)/r;
 	float J = r*r/w(r)*thetap;
 
-	while (ht < t) {
+	int i = 0;
+
+	while (ht < t && i < 300) {
 		// float delta = df2(r,rp,J);
 		// h = min( 1 , max(  t/50. , 2*sqrt(eps/delta) ) );
-		h = min( t - ht , t/100);
+		h = min( t - ht , 0.1*w(r+0.001));
 
 		if (r < rs && bh_active) 
 			return bh.xy;
@@ -92,6 +94,7 @@ vec2 illusion(vec2 pos, float t) {
 		r += h*rp;
 		theta += h*J*w(r)/(r*r);
 		ht += h;
+		i++;
 	}
 	if (bh_active) {
 		return vec2(rp*cos(theta) - J*w(r)/r*sin(theta), rp*sin(theta) + J*w(r)/r*cos(theta));

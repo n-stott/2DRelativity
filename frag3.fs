@@ -26,7 +26,7 @@ vec3 toGamma(vec3 color) {
 }
 
 vec3 toLinear(vec3 color) {
-  return pow(color, vec3(2.0));
+  return pow(color, vec3(1.1));
 }
 
 vec3 panoramaColor( vec3 pos)
@@ -67,7 +67,7 @@ float f(float r, float J) {
 	return wr*wpr*(1 - 3/2*wr*J2/r2) + w3*J2/r3;
 }
 
-//impact parameter
+//impact parameter - rayDir is normalized
 float b(vec3 rayPos, vec3 rayDir) {
 	vec3 rv = blackHole - rayPos;
 	return length( rv - dot(rayDir,rv)*rayDir);
@@ -121,13 +121,15 @@ vec4 raytrace(vec3 rayPos, vec3 rayDir) {
 	//interpolation for small black holes
 	if (bh_active && rs <= 0.03) {
 		float t = (max(rs,0.01) - 0.01)/0.02;
-		theta = t*theta + (1-t)*atan(v.y, v.x);
+		float s = t*t*(3 - 2*t);
+		theta = s*theta + (1-s)*atan(v.y, v.x);
 	}
 
 	//interpolation for far rays
 	if (bh_active && bv > 15*rs && optimizeFarRays) {
 		float t = (min(bv,30*rs) - 15*rs)/(15*rs);
-		theta = (1-t)*theta + t*atan(v.y, v.x);
+		float s = t*t*(3 - 2*t);
+		theta = (1-s)*theta + s*atan(v.y, v.x);
 	}
 
 	float phi = atan(rayDir.y, rayDir.x);
@@ -137,13 +139,83 @@ vec4 raytrace(vec3 rayPos, vec3 rayDir) {
 	return rdir;
 }
 
+float eq(float r, float b) {
+	float b2 = b*b;
+	return b2+r*( -b2 + r*r );
+}
+
+float root(float b) {
+	float x = b/sqrt(3);
+	float y = b;
+	for(int i = 1; i < 10; i++) {
+		float z = 0.5*(x+y);
+		if (z < 0) {
+			x = z;
+		}
+		else y = z;
+	}
+	return y;
+}
+
+float g(float al, float eps) {
+	float e2 = eps*eps, e4 = e2*e2;
+	return 2/sqrt( (2*al - 3)/(al*al) + e2*(3/al-1) - e4 );
+}
+
+float integrate(float al, float be, float b) {
+	float borne = sqrt(1/al - 1/be);
+	int N = 20;
+	float h = borne/N;
+	float inte = 0;
+	for(int i = 0; i < N; ++i) {
+		inte += h*g(al,h*(i+0.5));
+	}
+	return inte;
+}
+
+float integrate0(float al, float b) {
+	float borne = sqrt(1/al);
+	int N = 20;
+	float h = borne/N;
+	float inte = 0;
+	for(int i = 0; i < N; ++i) {
+		inte += h*g(al,h*(i+0.5));
+	}
+	return inte;
+}
+
+vec4 raytraceFast(vec3 rayPos, vec3 rayDir) {
+	float b = b(rayPos, rayDir)/rs;
+	float alpha = root(b);
+	float beta = length(rayPos - blackHole)/rs;
+
+	vec2 v = vec2(length(rayDir.xy), rayDir.z);
+	float theta = atan(v.y,v.x), theta2 = 0;
+
+	if (bh_active) {
+		if (dot(rayPos - blackHole, rayDir) < 0) {
+			theta += integrate(alpha, beta, b)+integrate0(alpha, b)-PI;
+		}
+		else {
+			theta += 0* integrate0(beta, b);
+		}
+	}
+	float phi = atan(rayDir.y, rayDir.x);
+	vec4 rdir;
+	rdir.x = 2*rs;
+	// if (b < sqrt(27)/2) {rdir.x = 0;} else {rdir.x = 2*rs;}
+	rdir.yzw = rotate(vec3(cos(theta), 0, sin(theta)), vec3(0,0,1), -phi);
+	return rdir;
+}
+
 // rdir: vec4 with r and dir
 vec4 colorAt(vec4 rdir, float t) {
 	float d;
 	float r = rdir.x;
 	vec3 dir = rdir.yzw;
 	d =  time - t;
-	if (r <= rs && bh_active && rs >= 0.03) {
+	// if (r <= rs && bh_active && rs >= 0.03) {
+	if (r <= rs && bh_active) {
 		float f = 0.0;
 		f = sqrt(f);
 		return vec4(f,f,f,1);
@@ -160,6 +232,8 @@ void main()
 {
 	vec3 ray = vec3(position.x, position.y, -player.z/2);
 	ray = normalize(ray);
-	vec4 rdir = raytrace(player, ray);
+	vec4 rdir = raytraceFast(player, ray);
+	// vec4 rdir = raytrace(player, ray);
+
 	FragColor = vec4(colorAt(rdir,0));
 }
