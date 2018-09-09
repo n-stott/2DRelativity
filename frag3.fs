@@ -10,6 +10,8 @@ uniform vec3 blackHole = vec3(0,0,0);
 uniform vec3 player = vec3(0., 0., -4.);
 uniform float rs = 0.1;
 
+uniform int N  = 20; // number of integration steps
+
 uniform sampler2D texGalaxy1;
 uniform sampler2D texGalaxy2;
 
@@ -172,7 +174,6 @@ float g(float al, float eps) {
 
 float integrate(float al, float be, float b) {
 	float borne = sqrt(1/al - 1/be);
-	int N = 50;
 	float h = borne/N;
 	float inte = 0;
 	for(int i = 0; i < N; ++i) {
@@ -183,7 +184,6 @@ float integrate(float al, float be, float b) {
 
 float integrate0(float al, float b) {
 	float borne = sqrt(1/al);
-	int N = 50;
 	float h = borne/N;
 	float inte = 0;
 	for(int i = 0; i < N; ++i) {
@@ -195,7 +195,6 @@ float integrate0(float al, float b) {
 float integrate1(float al, float R, float be, float b) {
 	float borneI = sqrt(1/al-1/R);
 	float borneS = sqrt(1/al-1/be);
-	int N = 50;
 	float h = (borneS - borneI)/N;
 	float inte = 0;
 	for(int i = 0; i < N; ++i) {
@@ -207,7 +206,6 @@ float integrate1(float al, float R, float be, float b) {
 float integrate2(float al, float R, float b) {
 	float borneI = sqrt(1/al-1/R);
 	float borneS = sqrt(1/al);
-	int N = 50;
 	float h = (borneS - borneI)/N;
 	float inte = 0;
 	for(int i = 0; i < N; ++i) {
@@ -270,7 +268,6 @@ void collision(inout vec3 rtp, inout int target, float r1, float r2, float theta
 
 float integrateCollision(float R, float al, inout vec3 rtp, inout int target) {
 	float borne = sqrt(1/al - 1/R);
-	int N = 50;
 	float h = borne/N;
 	float inte = 0;
 	float e = 0, r1 = 0, r2 = 0, dtheta = 0;
@@ -301,7 +298,6 @@ float integrateCollision(float R, float al, inout vec3 rtp, inout int target) {
 float integrateCollision2(float r0, float b, inout vec3 rtp, inout int target) {
 	float borneI = rs;
 	float borneS = r0;
-	int N = 50;
 	float h = (borneS - borneI)/N;
 	float inte = 0;
 	float e = 0, r1 = 0, r2 = 0, dtheta = 0;
