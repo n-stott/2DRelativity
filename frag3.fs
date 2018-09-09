@@ -10,10 +10,11 @@ uniform vec3 blackHole = vec3(0,0,0);
 uniform vec3 player = vec3(0., 0., -4.);
 uniform float rs = 0.1;
 
-uniform int N  = 20; // number of integration steps
+uniform int N  = 50; // number of integration steps
 
 uniform sampler2D texGalaxy1;
-uniform sampler2D texGalaxy2;
+// uniform sampler2D texGalaxy2;
+uniform sampler2D texDisk;
 
 uniform bool bh_active = false;
 
@@ -42,13 +43,14 @@ vec3 panoramaColor( vec3 pos)
     mod(1.2 - asin(pos.y) / PI + bh.y, 1)
   );
   if (bh_active) {
-  	return toLinear(texture2D(texGalaxy1, uv).rgb) + toLinear(texture2D(texGalaxy1, uv2).rgb);
+  	return toLinear(texture2D(texGalaxy1, uv).rgb); // + toLinear(texture2D(texGalaxy1, uv2).rgb);
   }
   else {
-  	return toLinear(texture2D(texGalaxy2, uv).rgb);
+  	return toLinear(texture2D(texGalaxy1, uv).rgb);
   }
-  	
 }
+
+
 
 vec3 rotate(vec3 x, vec3 u, float t) {
 	mat3 W;
@@ -74,7 +76,7 @@ float f(float r, float J) {
 }
 
 //impact parameter - rayDir is normalized
-float b(vec3 rayPos, vec3 rayDir) {
+float getB(vec3 rayPos, vec3 rayDir) {
 	vec3 rv = blackHole - rayPos;
 	return length( rv - dot(rayDir,rv)*rayDir );
 }
@@ -97,7 +99,7 @@ vec4 raytrace(vec3 rayPos, vec3 rayDir) {
 	float rp = dot(v,ur);
 	float J = r/w(r)*dot(v,ut);
 
-	float bv = b(rayPos, rayDir);
+	float bv = getB(rayPos, rayDir);
 
 	// J = bv;
 
@@ -227,7 +229,7 @@ vec4 raytraceFast(vec3 rayPos, vec3 rayDir) {
 	if (rayDir.x > 0 ) {
 		// return raytrace(rayPos, rayDir);
 	}
-	float b = b(rayPos, rayDir)/rs;
+	float b = getB(rayPos, rayDir)/rs;
 	float alpha = root(b);
 	vec4 rdir;
 	if (b <= sqrt(27)/2) { 
@@ -256,17 +258,24 @@ vec3 pos(float r, float theta, float phi) {
 	return r*rotate(vec3(cos(theta), 0, sin(theta)), vec3(0,0,1), phi);
 }
 
+vec3 posv(vec3 rtp) {
+	return pos(rtp.x, rtp.y, rtp.z);
+}
+
 void collision(inout vec3 rtp, inout int target, float r1, float r2, float theta, float dtheta) {
 	vec3 p1 = pos(r1, theta, rtp.z);
 	vec3 p2 = pos(r2, theta+dtheta, rtp.z);
 	float z = 0.1;
-	if ((p2.y-z*p2.z)*(p1.y-z*p1.z) <= 0 && r1 >= 4 && r1 <= 8) {
-		rtp = vec3(1,1,1);
+	float c = cos(TWOPI*bh.y);
+	float s = sin(TWOPI*bh.y);
+	if ((c*p2.y-s*p2.z)*(c*p1.y-s*p1.z) <= 0 && r1 >= 2.26 && r1 <= 4) {
+	// if ((p2.y-z*p2.z)*(p1.y-z*p1.z) <= 0 && r1 >= 2.26 && r1 <= 4) {
+		rtp = p1;
 		target = 1;
 	}
 }
 
-float integrateCollision(float R, float al, inout vec3 rtp, inout int target) {
+float integrateCollision(float R, float al, inout vec3 rtp, inout float target) {
 	float borne = sqrt(1/al - 1/R);
 	float h = borne/N;
 	float inte = 0;
@@ -295,7 +304,7 @@ float integrateCollision(float R, float al, inout vec3 rtp, inout int target) {
 
 
 
-float integrateCollision2(float r0, float b, inout vec3 rtp, inout int target) {
+float integrateCollision2(float r0, float b, inout vec3 rtp, inout float target) {
 	float borneI = rs;
 	float borneS = r0;
 	float h = (borneS - borneI)/N;
@@ -313,11 +322,11 @@ float integrateCollision2(float r0, float b, inout vec3 rtp, inout int target) {
 
 
 
-vec4 raytraceFastCollision(vec3 rayPos, vec3 rayDir, inout vec3 rtp, inout int target) {
+vec4 raytraceFastCollision(vec3 rayPos, vec3 rayDir, inout vec3 rtp, inout float target) {
 	if (rayDir.x > 0 ) {
 		// return raytrace(rayPos, rayDir);
 	}
-	float b = b(rayPos, rayDir)/rs;
+	float b = getB(rayPos, rayDir)/rs;
 	float alpha = root(b);
 	vec4 rdir;
 	// if (b <= sqrt(27)/2) { 
@@ -329,7 +338,7 @@ vec4 raytraceFastCollision(vec3 rayPos, vec3 rayDir, inout vec3 rtp, inout int t
 	float theta = atan(v.y,v.x);
 	float phi = atan(rayDir.y, rayDir.x);
 
-	float R = 10;
+	float R = 5;
 
 	rtp.z = phi;
 
@@ -338,7 +347,7 @@ vec4 raytraceFastCollision(vec3 rayPos, vec3 rayDir, inout vec3 rtp, inout int t
 		if (dot(rayPos - blackHole, rayDir) < 0) {
 			if (b <= sqrt(27)/2) { 
 				theta += integrateCollision2(beta, b, rtp, target);
-				rdir.x = 0;
+				rdir.x = 2*rs;
 			}
 			else { 
 				if (alpha < R) {
@@ -359,40 +368,70 @@ vec4 raytraceFastCollision(vec3 rayPos, vec3 rayDir, inout vec3 rtp, inout int t
 	return rdir;
 }
 
+//we should have p.y \sim 0
+vec4 diskColor(vec3 p) {
+	float t = atan(p.y, p.x);
+	vec2 uv = vec2( 
+		t/PI + bh.x,
+		(4-length(p))/(4 - 2.26)
+	 );
+	vec4 c;
+	c.rgb = toLinear(texture2D(texDisk, uv).rgb);
+	c.a = length(c.rgb);
+	return c;
+}
+
 // rdir: vec4 with r and dir
-vec4 colorAt(vec4 rdir, float t) {
+vec4 colorAt(vec4 rdir, vec4 rdirCol, float t, vec3 rtp, float target) {
 	float d;
 	float r = rdir.x;
+	r = 2*rs;
 	vec3 dir = rdir.yzw;
 	d =  time - t;
-	// if (r <= rs && bh_active && rs >= 0.03) {
 	if (r <= rs && bh_active) {
 		float f = 0.0;
 		f = sqrt(f);
 		return vec4(f,f,f,1);
 	}
 	else {
-		vec3 c = panoramaColor(rdir.yzw);
-		return vec4(c.r, c.g, c.b, 1);
-		d = 6*(dir.y) + 1*time;
-		return vec4(0.5*sin(d+2) + 0.5, 0.5*sin(d+4) + 0.5, 0.5*sin(d) + 0.5, 1.0f);
+		vec3 pc = panoramaColor(rdir.yzw);
+		vec4 dc = diskColor(rtp);
+		vec4 color = vec4(1,1,1,1);
+		if (target < 0) {
+			color.rgb = pc.rgb;
+		}
+		else {
+			color.rgb = mix(pc.rgb, dc.rgb, length(dc.rgb));
+			// return vec4(c.r, c.g, c.b, 1);
+		}
+		return color;
+		// d = 6*(dir.y) + 1*time;
+		// return vec4(0.5*sin(d+2) + 0.5, 0.5*sin(d+4) + 0.5, 0.5*sin(d) + 0.5, 1.0f);
 	}
 }
 
 void main()
 {
 	vec3 rtp = vec3(0,0,0);
-	int target = -1;
+	float target = -1;
 
 	vec3 ray = vec3(position.x, position.y, -player.z/2);
 	ray = normalize(ray);
-	// vec4 rdir = raytraceFast(player, ray);
-	vec4 rdir = raytraceFastCollision(player, ray, rtp, target);
+	vec4 rdir = raytraceFast(player, ray);
+	vec4 rdirCol = raytraceFastCollision(player, ray, rtp, target);
 	// vec4 rdir = raytrace(player, ray);
-	if (target < 0) {
-		FragColor = vec4(colorAt(rdir,0));
-	}
-	else {
-		FragColor = mix(vec4(colorAt(rdir,0)),vec4(rtp.x,rtp.x,rtp.x,1),1);
-	}
+
+
+	FragColor = vec4(colorAt(rdir, rdirCol, 0, rtp, target));
+
+	// if (target < 0) {
+	// 	FragColor = vec4(colorAt(rdir,0));
+	// }
+	// else {
+	// 	// vec3 p = pos(rtp.x, rtp.y, rtp.z);
+	// 	vec3 col = diskColor(rtp);
+	// 	FragColor.rgb = col;
+	// 	FragColor.a = 1;
+	// 	// mix(vec4(colorAt(rdir,0)),vec4(rtp.x,rtp.x,rtp.x,1),1);
+	// }
 }
