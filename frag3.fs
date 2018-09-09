@@ -26,7 +26,7 @@ vec3 toGamma(vec3 color) {
 }
 
 vec3 toLinear(vec3 color) {
-  return pow(color, vec3(1.1));
+  return pow(color, vec3(1.2));
 }
 
 vec3 panoramaColor( vec3 pos)
@@ -35,8 +35,12 @@ vec3 panoramaColor( vec3 pos)
     mod(0.5 - atan(pos.z, pos.x) / TWOPI + bh.x, 1),
     mod(0.5 - asin(pos.y) / PI + bh.y, 1)
   );
+  vec2 uv2 = vec2(
+    mod(1.2 - atan(pos.z, pos.x) / TWOPI + bh.x, 1),
+    mod(1.2 - asin(pos.y) / PI + bh.y, 1)
+  );
   if (bh_active) {
-  	return toLinear(texture2D(texGalaxy1, uv).rgb);
+  	return toLinear(texture2D(texGalaxy1, uv).rgb) + toLinear(texture2D(texGalaxy1, uv2).rgb);
   }
   else {
   	return toLinear(texture2D(texGalaxy2, uv).rgb);
@@ -70,7 +74,7 @@ float f(float r, float J) {
 //impact parameter - rayDir is normalized
 float b(vec3 rayPos, vec3 rayDir) {
 	vec3 rv = blackHole - rayPos;
-	return length( rv - dot(rayDir,rv)*rayDir);
+	return length( rv - dot(rayDir,rv)*rayDir );
 }
 
 float defl(float r, float r0) {
@@ -86,12 +90,14 @@ vec4 raytrace(vec3 rayPos, vec3 rayDir) {
 	vec2 ut = vec2(-ur.y, ur.x);
 
 	vec2 v = vec2(length(rayDir.xy), rayDir.z);
-	float theta = -3.14/2;
+	float theta = -PI/2;
 
 	float rp = dot(v,ur);
 	float J = r/w(r)*dot(v,ut);
 
 	float bv = b(rayPos, rayDir);
+
+	// J = bv;
 
 	if (bh_active) {
 		if (bv > 30*rs && optimizeFarRays) {
@@ -99,12 +105,12 @@ vec4 raytrace(vec3 rayPos, vec3 rayDir) {
 		}
 		else {
 			float h = 0., ht = 0.;
-			float eps = (0.2+rs)*w(r+0.0001);
 			int i = 0;
-			while (ht < 40 && r < 25 && i < 200) {
+			theta =  -PI/2 ; //atan(v.y, v.x);
+			while (ht < 50 && i < 1000) {
 				if (r < rs) return vec4(r, theta, 0, 0);
-
-				h = min( 40 - ht , eps*w(r+0.0001));
+				float eps = 0.01;
+				h = min( 50 - ht , eps);
 
 				rp += h*f(r,J);
 				r += h*rp;
@@ -118,19 +124,21 @@ vec4 raytrace(vec3 rayPos, vec3 rayDir) {
 		theta = atan(v.y, v.x);
 	}
 
-	//interpolation for small black holes
-	if (bh_active && rs <= 0.03) {
-		float t = (max(rs,0.01) - 0.01)/0.02;
-		float s = t*t*(3 - 2*t);
-		theta = s*theta + (1-s)*atan(v.y, v.x);
-	}
+	// theta = PI + 2*(theta - PI);
 
-	//interpolation for far rays
-	if (bh_active && bv > 15*rs && optimizeFarRays) {
-		float t = (min(bv,30*rs) - 15*rs)/(15*rs);
-		float s = t*t*(3 - 2*t);
-		theta = (1-s)*theta + s*atan(v.y, v.x);
-	}
+	// //interpolation for small black holes
+	// if (bh_active && rs <= 0.03) {
+	// 	float t = (max(rs,0.01) - 0.01)/0.02;
+	// 	float s = t*t*(3 - 2*t);
+	// 	theta = s*theta + (1-s)*atan(v.y, v.x);
+	// }
+
+	// //interpolation for far rays
+	// if (bh_active && bv > 15*rs && optimizeFarRays) {
+	// 	float t = (min(bv,30*rs) - 15*rs)/(15*rs);
+	// 	float s = t*t*(3 - 2*t);
+	// 	theta = (1-s)*theta + s*atan(v.y, v.x);
+	// }
 
 	float phi = atan(rayDir.y, rayDir.x);
 	vec4 rdir;
@@ -147,12 +155,12 @@ float eq(float r, float b) {
 float root(float b) {
 	float x = b/sqrt(3);
 	float y = b;
-	for(int i = 1; i < 10; i++) {
-		float z = 0.5*(x+y);
+	for(int i = 0; i < 20; i++) {
+		float z = eq(0.5*(x+y),b);
 		if (z < 0) {
-			x = z;
+			x = 0.5*(x+y);
 		}
-		else y = z;
+		else y = 0.5*(x+y);
 	}
 	return y;
 }
@@ -164,7 +172,7 @@ float g(float al, float eps) {
 
 float integrate(float al, float be, float b) {
 	float borne = sqrt(1/al - 1/be);
-	int N = 20;
+	int N = 50;
 	float h = borne/N;
 	float inte = 0;
 	for(int i = 0; i < N; ++i) {
@@ -175,7 +183,7 @@ float integrate(float al, float be, float b) {
 
 float integrate0(float al, float b) {
 	float borne = sqrt(1/al);
-	int N = 20;
+	int N = 50;
 	float h = borne/N;
 	float inte = 0;
 	for(int i = 0; i < N; ++i) {
@@ -184,27 +192,138 @@ float integrate0(float al, float b) {
 	return inte;
 }
 
+float integrate1(float al, float R, float be, float b) {
+	float borneI = sqrt(1/al-1/R);
+	float borneS = sqrt(1/al-1/be);
+	int N = 50;
+	float h = (borneS - borneI)/N;
+	float inte = 0;
+	for(int i = 0; i < N; ++i) {
+		inte += h*g(al,borneI + h*(i+0.5));
+	}
+	return inte;
+}
+
+float integrate2(float al, float R, float b) {
+	float borneI = sqrt(1/al-1/R);
+	float borneS = sqrt(1/al);
+	int N = 50;
+	float h = (borneS - borneI)/N;
+	float inte = 0;
+	for(int i = 0; i < N; ++i) {
+		inte += h*g(al,borneI + h*(i+0.5));
+	}
+	return inte;
+}
+
 vec4 raytraceFast(vec3 rayPos, vec3 rayDir) {
+	if (rayDir.x > 0 ) {
+		// return raytrace(rayPos, rayDir);
+	}
 	float b = b(rayPos, rayDir)/rs;
 	float alpha = root(b);
+	vec4 rdir;
+	if (b <= sqrt(27)/2) { 
+		rdir.x = 0;
+		return rdir;
+	}
 	float beta = length(rayPos - blackHole)/rs;
-
 	vec2 v = vec2(length(rayDir.xy), rayDir.z);
-	float theta = atan(v.y,v.x), theta2 = 0;
+	float theta = atan(v.y,v.x);
 
 	if (bh_active) {
 		if (dot(rayPos - blackHole, rayDir) < 0) {
 			theta += integrate(alpha, beta, b)+integrate0(alpha, b)-PI;
 		}
 		else {
-			theta += 0* integrate0(beta, b);
+			theta += integrate0(beta, b);
 		}
 	}
 	float phi = atan(rayDir.y, rayDir.x);
-	vec4 rdir;
 	rdir.x = 2*rs;
-	// if (b < sqrt(27)/2) {rdir.x = 0;} else {rdir.x = 2*rs;}
-	rdir.yzw = rotate(vec3(cos(theta), 0, sin(theta)), vec3(0,0,1), -phi);
+	rdir.yzw = rotate(vec3(cos(theta), 0, sin(theta)), vec3(0,0,1), phi);
+	return rdir;
+}
+
+vec3 pos(float r, float theta, float phi) {
+	return r*rotate(vec3(cos(theta), 0, sin(theta)), vec3(0,0,1), phi);
+}
+
+void collision(inout vec3 rtp, inout int target, float r1, float r2, float theta, float dtheta) {
+	vec3 p1 = pos(r1, theta, rtp.z);
+	vec3 p2 = pos(r2, theta+dtheta, rtp.z);
+	float z = 0.2;
+	if ((p2.y-z*p2.z)*(p1.y-z*p1.z) <= 0 && r1 >= 4 && r1 <= 8) {
+		rtp = vec3(1,1,1);
+		target = 1;
+	}
+}
+
+float integrateCollision(float R, float al, inout vec3 rtp, inout int target) {
+	float borne = sqrt(1/al - 1/R);
+	int N = 50;
+	float h = borne/N;
+	float inte = 0;
+	float e = 0, r1 = 0, r2 = 0, dtheta = 0;
+	for(int i = N-1; i >= 0; --i) {
+		e = h*(i+0.5);
+		r1 = al/(1-al*e*e);
+		r2 = al/(1-al*(e+h)*(e+h));
+		dtheta = h*g(al,e);
+		collision(rtp, target, r1, r2, inte, dtheta);
+		if (target >= 0) break;
+		inte += dtheta;
+	}
+	if (target >= 0) return inte;
+	for(int i = 0; i < N; ++i) {
+		e = h*(i+0.5);
+		r1 = al/(1-al*e*e);
+		r2 = al/(1-al*(e+h)*(e+h));
+		dtheta = h*g(al,e);
+		collision(rtp, target, r1, r2, inte, dtheta);
+		if (target >= 0) break;
+		inte += dtheta;
+	}
+	return inte;
+}
+
+vec4 raytraceFastCollision(vec3 rayPos, vec3 rayDir, inout vec3 rtp, inout int target) {
+	if (rayDir.x > 0 ) {
+		// return raytrace(rayPos, rayDir);
+	}
+	float b = b(rayPos, rayDir)/rs;
+	float alpha = root(b);
+	vec4 rdir;
+	if (b <= sqrt(27)/2) { 
+		rdir.x = 0;
+		return rdir;
+	}
+	float beta = length(rayPos - blackHole)/rs;
+	vec2 v = vec2(length(rayDir.xy), rayDir.z);
+	float theta = atan(v.y,v.x);
+	float phi = atan(rayDir.y, rayDir.x);
+
+	float R = 10;
+
+	rtp.z = phi;
+
+
+	if (bh_active) {
+		if (dot(rayPos - blackHole, rayDir) < 0) {
+			if (alpha < R) {
+				//incorporate phi in the collision test
+				theta += integrate1(alpha, R, beta, b) + integrateCollision(R, alpha, rtp, target) + integrate2(alpha, R, b)-PI;
+			}
+			else {
+				theta += integrate(alpha, beta, b)+integrate0(alpha, b)-PI;
+			}
+		}
+		else {
+			theta += integrate0(beta, b);
+		}
+	}
+	rdir.x = 2*rs;
+	rdir.yzw = rotate(vec3(cos(theta), 0, sin(theta)), vec3(0,0,1), phi);
 	return rdir;
 }
 
@@ -230,10 +349,18 @@ vec4 colorAt(vec4 rdir, float t) {
 
 void main()
 {
+	vec3 rtp = vec3(0,0,0);
+	int target = -1;
+
 	vec3 ray = vec3(position.x, position.y, -player.z/2);
 	ray = normalize(ray);
-	vec4 rdir = raytraceFast(player, ray);
+	// vec4 rdir = raytraceFast(player, ray);
+	vec4 rdir = raytraceFastCollision(player, ray, rtp, target);
 	// vec4 rdir = raytrace(player, ray);
-
-	FragColor = vec4(colorAt(rdir,0));
+	if (target < 0) {
+		FragColor = vec4(colorAt(rdir,0));
+	}
+	else {
+		FragColor = mix(vec4(colorAt(rdir,0)),vec4(rtp.x,rtp.x,rtp.x,1),1);
+	}
 }

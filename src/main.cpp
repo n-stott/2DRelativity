@@ -42,7 +42,8 @@ float playerDistance = -4;
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
 
-unsigned int texture0, texture1;
+// unsigned int texture0, texture1;
+// unsigned int frameBuffer0, frameBuffer1;
 
 int createWindow() {
 	 // glfw: initialize and configure
@@ -54,7 +55,7 @@ int createWindow() {
 
     // glfw window creation
     // --------------------
-    glfwWindowHint(GLFW_SAMPLES, 4);
+    // glfwWindowHint(GLFW_SAMPLES, 4);
     window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
     if (window == NULL)
     {
@@ -64,7 +65,10 @@ int createWindow() {
     }
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-    // glfwSetInputMode(window, GLFW_STICKY_KEYS, 1);
+    glfwSetInputMode(window, GLFW_STICKY_KEYS, 1);
+
+    // tell GLFW to capture our mouse
+    // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     // glad: load all OpenGL function pointers
     // ---------------------------------------
@@ -73,6 +77,8 @@ int createWindow() {
         std::cout << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
+
+    // glEnable(GL_DEPTH_TEST);
 }
 
 void loadShader() {
@@ -84,10 +90,50 @@ void loadShader() {
     }
 }
 
-void loadTexture(const std::string& file, unsigned int& texture) {
+unsigned int loadTexture(char const * path)
+{
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+
+    int width, height, nrComponents;
+    unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
+    if (data)
+    {
+        GLenum format;
+        if (nrComponents == 1)
+            format = GL_RED;
+        else if (nrComponents == 3)
+            format = GL_RGB;
+        else if (nrComponents == 4)
+            format = GL_RGBA;
+
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        stbi_image_free(data);
+    }
+    else
+    {
+        std::cout << "Texture failed to load at path: " << path << std::endl;
+        stbi_image_free(data);
+    }
+
+    return textureID;
+}
+
+void loadTextureMS(const std::string& file, unsigned int& texture, unsigned int& framebuffer) {
     // load and create a texture 
     // -------------------------
     
+    glGenFramebuffers(1, &framebuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture); // all upcoming GL_TEXTURE_2D operations now have effect on this texture object
     // set the texture wrapping parameters
@@ -102,104 +148,18 @@ void loadTexture(const std::string& file, unsigned int& texture) {
     unsigned char *data = stbi_load(FileSystem::getPath(file).c_str(), &width, &height, &nrChannels, 0);
     if (data)
     {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
+        glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGB, SCR_WIDTH, SCR_HEIGHT, GL_TRUE);
+        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, texture, 0);
+  
     }
     else
     {
         std::cout << "Failed to load texture" << std::endl;
     }
     stbi_image_free(data);   
-
 }
 
-int main2()
-{
-	createWindow();
- 	loadShader(); 
-
- 	quadtree->setup_leafs();
- 	quadtree->setup();
-
-    int nbFrames;
-    float lastTime, currentTime = 0;
-    std::ostringstream display;
-
-
-    loadTexture("assets/galaxy2.png", texture0);
-    loadTexture("assets/galaxy1.png", texture1);
-
-    ourShader.use();
-    ourShader.setInt("texGalaxy1", 0);
-    ourShader.setInt("texGalaxy2", 1);
-
-    while (!glfwWindowShouldClose(window))
-    {
-        processInput(window);
-
-        currentTime  = glfwGetTime();
-        nbFrames++;
-        if ( currentTime - lastTime >= 1.0 ){ // If last prinf() was more than 1 sec ago
-            // printf and reset timer
-            display.str("");
-            display.clear();
-            display  << nbFrames;
-            glfwSetWindowTitle(window,display.str().c_str());
-            nbFrames = 0;
-            lastTime += 1.0;
-        }
-
-        // if (rs < 0.01) 
-        // {
-        //     active = false;
-        // }
-        // else {
-        //     active = true;
-        // }
-
-        glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture0);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, texture1);
-
-        // glBindTexture(GL_TEXTURE_2D, texture);
-        ourShader.use();
-
-        float timeValue = glfwGetTime();
-        float redValue = sin(timeValue+2) / 2.0f + 0.5f;
-        float greenValue = sin(timeValue+4) / 2.0f + 0.5f;
-        float blueValue = sin(timeValue) / 2.0f + 0.5f;
-        int vertexColorLocation = glGetUniformLocation(ourShader.ID, "ourColor");
-        glUniform3f(vertexColorLocation, redValue, greenValue, blueValue);
-
-        int timeLocation = glGetUniformLocation(ourShader.ID, "time");
-        glUniform1f(timeLocation,timeValue);
-
-        int radiusLocation = glGetUniformLocation(ourShader.ID, "rs");
-        glUniform1f(radiusLocation,rs);
-
-        int activeLocation = glGetUniformLocation(ourShader.ID,"bh_active");
-        glUniform1i(activeLocation,active);
-
-        int bhLocation = glGetUniformLocation(ourShader.ID, "bh");
-        glUniform3f(bhLocation, bhx, bhy, bhz);
-
-        int playerLocation = glGetUniformLocation(ourShader.ID, "player");
-        glUniform3f(playerLocation, 0, 0, playerDistance);
-
-
-		quadtree->render_leafs();
-
-        glfwSwapBuffers(window);
-        glfwPollEvents();
-    }
-
-    glfwTerminate();
-    return 0;
-}
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
 // ---------------------------------------------------------------------------------------------------------
@@ -234,7 +194,7 @@ void processInput(GLFWwindow *window)
     }
     if (glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_PRESS ) {
         rs -= rate;
-        rs = std::max(rs, 0.05f);
+        rs = std::max(rs, 0.01f);
     }
     if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
         loadShader();
@@ -275,42 +235,103 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     glViewport(0, 0, width, height);
 }
 
+int start()
+{
+    createWindow();
+    loadShader(); 
+
+    quadtree->setup_leafs();
+    quadtree->setup();
+
+    int nbFrames;
+    float lastTime, currentTime = 0;
+    std::ostringstream display;
+
+
+    unsigned int texture0 = loadTexture("assets/galaxy1.png");
+    unsigned int texture1 = loadTexture("assets/galaxy2.png");
+
+    // loadTextureMS("assets/galaxy1.png", texture0, frameBuffer0);
+    // loadTextureMS("assets/galaxy2.png", texture1, frameBuffer1);
+
+    ourShader.use();
+    ourShader.setInt("texGalaxy1", 0);
+    ourShader.setInt("texGalaxy2", 1);
+
+    while (!glfwWindowShouldClose(window))
+    {
+        processInput(window);
+
+        currentTime  = glfwGetTime();
+        nbFrames++;
+        if ( currentTime - lastTime >= 1.0 ){ 
+            display.str("");
+            display.clear();
+            display  << nbFrames;
+            glfwSetWindowTitle(window,display.str().c_str());
+            nbFrames = 0;
+            lastTime += 1.0;
+        }
+
+        // glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture0);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, texture1);
+
+        ourShader.use();
+
+        float timeValue = glfwGetTime();
+        float redValue = sin(timeValue+2) / 2.0f + 0.5f;
+        float greenValue = sin(timeValue+4) / 2.0f + 0.5f;
+        float blueValue = sin(timeValue) / 2.0f + 0.5f;
+        int vertexColorLocation = glGetUniformLocation(ourShader.ID, "ourColor");
+        glUniform3f(vertexColorLocation, redValue, greenValue, blueValue);
+
+        int timeLocation = glGetUniformLocation(ourShader.ID, "time");
+        glUniform1f(timeLocation,timeValue);
+
+        int radiusLocation = glGetUniformLocation(ourShader.ID, "rs");
+        glUniform1f(radiusLocation,rs);
+
+        int activeLocation = glGetUniformLocation(ourShader.ID,"bh_active");
+        glUniform1i(activeLocation,active);
+
+        int bhLocation = glGetUniformLocation(ourShader.ID, "bh");
+        glUniform3f(bhLocation, bhx, bhy, bhz);
+
+        int playerLocation = glGetUniformLocation(ourShader.ID, "player");
+        glUniform3f(playerLocation, 0, 0, playerDistance);
+
+
+        quadtree->render_leafs();
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    glfwTerminate();
+    return 0;
+}
 
 int main() {
 
 	srand(time(0));
-	quadtree = new Quadtree(glm::vec2(0,0), glm::vec2(1,1));
+	quadtree = new Quadtree(glm::vec2(0,0), glm::vec2(2,2));
+    points.push_back(glm::vec2(1,1));
+    points.push_back(glm::vec2(-1,1));
+    points.push_back(glm::vec2(-1,-1));
+    points.push_back(glm::vec2(1,-1));
 
-	// const int nPoints = 1 * 20 * 1;
-	// for(int i=0; i<nPoints; ++i) {
-	// 	points.push_back(glm::vec2(glm::linearRand(-1.0f, 1.0f),glm::linearRand(-1.0f, 1.0f)));
-	// }
-
-
-    const int nPoints = 1 * 5;
-    const int nRays = 10;
-    const float a = 0.1f, b = 2.0f;
-    for(int i=0; i<nPoints; ++i) {
-        for(int j = 0; j < nRays; ++j) {
-            float r = glm::linearRand(a, b);
-            r = a*std::exp(r*std::log(b/a));
-            float t = PI*glm::linearRand(-1.0f, 1.0f);
-            points.push_back(glm::vec2(r*std::cos(t), r*std::sin(t)));
-            // points.push_back(glm::vec2(glm::linearRand(-1.0f, 1.0f),glm::linearRand(-1.0f, 1.0f)));
-        }
-    }
-
-
-	quadtreePoints = new QuadtreeDatapoint[nPoints*nRays];
-	for(int i=0; i<nPoints*nRays; ++i) {
+	quadtreePoints = new QuadtreeDatapoint[points.size()];
+	for(int i=0; i< points.size(); ++i) {
 		quadtreePoints[i].setPosition(points[i]);
         QuadtreeDatapoint* inserted = & (quadtreePoints[i]);
 		quadtree->insert( inserted );
 	}
 
-
-	// printf("Inserted points to quadtree\n"); fflush(stdout);
-	// printf("Created %ld points\n", points.size()); fflush(stdout);
-
-	main2();
+	start();
 }
