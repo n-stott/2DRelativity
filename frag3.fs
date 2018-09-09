@@ -216,6 +216,15 @@ float integrate2(float al, float R, float b) {
 	return inte;
 }
 
+
+float g2(float r, float b) {
+	float r2 = r*r;
+	float b2 = b*b;
+	float hi = r2*sqrt(1/b2 - (1-1/r)/r2);
+	return 1/hi;
+}
+
+
 vec4 raytraceFast(vec3 rayPos, vec3 rayDir) {
 	if (rayDir.x > 0 ) {
 		// return raytrace(rayPos, rayDir);
@@ -252,7 +261,7 @@ vec3 pos(float r, float theta, float phi) {
 void collision(inout vec3 rtp, inout int target, float r1, float r2, float theta, float dtheta) {
 	vec3 p1 = pos(r1, theta, rtp.z);
 	vec3 p2 = pos(r2, theta+dtheta, rtp.z);
-	float z = 0.2;
+	float z = 0.1;
 	if ((p2.y-z*p2.z)*(p1.y-z*p1.z) <= 0 && r1 >= 4 && r1 <= 8) {
 		rtp = vec3(1,1,1);
 		target = 1;
@@ -287,6 +296,27 @@ float integrateCollision(float R, float al, inout vec3 rtp, inout int target) {
 	return inte;
 }
 
+
+
+float integrateCollision2(float r0, float b, inout vec3 rtp, inout int target) {
+	float borneI = rs;
+	float borneS = r0;
+	int N = 50;
+	float h = (borneS - borneI)/N;
+	float inte = 0;
+	float e = 0, r1 = 0, r2 = 0, dtheta = 0;
+	for(int i = N-1; i >= 0; --i) {
+		r1 = rs + h*(i+0.5);
+		r2 = r1 - h;
+		dtheta = h*g2(r1,e);
+		collision(rtp, target, r1, r2, inte, dtheta);
+		inte += dtheta;
+	}
+	return inte;
+}
+
+
+
 vec4 raytraceFastCollision(vec3 rayPos, vec3 rayDir, inout vec3 rtp, inout int target) {
 	if (rayDir.x > 0 ) {
 		// return raytrace(rayPos, rayDir);
@@ -294,10 +324,10 @@ vec4 raytraceFastCollision(vec3 rayPos, vec3 rayDir, inout vec3 rtp, inout int t
 	float b = b(rayPos, rayDir)/rs;
 	float alpha = root(b);
 	vec4 rdir;
-	if (b <= sqrt(27)/2) { 
-		rdir.x = 0;
-		return rdir;
-	}
+	// if (b <= sqrt(27)/2) { 
+	// 	rdir.x = 0;
+	// 	return rdir;
+	// }
 	float beta = length(rayPos - blackHole)/rs;
 	vec2 v = vec2(length(rayDir.xy), rayDir.z);
 	float theta = atan(v.y,v.x);
@@ -310,19 +340,25 @@ vec4 raytraceFastCollision(vec3 rayPos, vec3 rayDir, inout vec3 rtp, inout int t
 
 	if (bh_active) {
 		if (dot(rayPos - blackHole, rayDir) < 0) {
-			if (alpha < R) {
-				//incorporate phi in the collision test
-				theta += integrate1(alpha, R, beta, b) + integrateCollision(R, alpha, rtp, target) + integrate2(alpha, R, b)-PI;
+			if (b <= sqrt(27)/2) { 
+				theta += integrateCollision2(beta, b, rtp, target);
+				rdir.x = 0;
 			}
-			else {
-				theta += integrate(alpha, beta, b)+integrate0(alpha, b)-PI;
+			else { 
+				if (alpha < R) {
+					//incorporate phi in the collision test
+					theta += integrate1(alpha, R, beta, b) + integrateCollision(R, alpha, rtp, target) + integrate2(alpha, R, b)-PI;
+				}
+				else {
+					theta += integrate(alpha, beta, b)+integrate0(alpha, b)-PI;
+				}
+				rdir.x = 2*rs;
 			}
 		}
 		else {
 			theta += integrate0(beta, b);
 		}
 	}
-	rdir.x = 2*rs;
 	rdir.yzw = rotate(vec3(cos(theta), 0, sin(theta)), vec3(0,0,1), phi);
 	return rdir;
 }
