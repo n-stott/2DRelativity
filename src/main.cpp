@@ -11,6 +11,13 @@
 #include <string>
 #include <sstream>
 
+#include "Camera.h"
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
+
 #include <learnopengl/filesystem.h>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -29,25 +36,30 @@ Quadtree* quadtree;
 QuadtreeDatapoint* quadtreePoints;
 Shader ourShader;
 
-bool active= false;
 int space_state = GLFW_RELEASE;
 
 int D = 3;
 
-float bhx = 0, bhy = 0, bhz = 0;
-float rate;
 float rs = 0.1;
 float playerDistance = -4;
 
+//camera
+Camera camera(glm::vec3(0.0f, 0.0f, -4.0f));
+float lastX = SCR_WIDTH / 2.0f;
+float lastY = SCR_HEIGHT / 2.0f;
+bool firstMouse = true;
+
+// timing
+float deltaTime = 0.0f; // time between current frame and last frame
+float lastFrame = 0.0f;
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+void mouse_callback(GLFWwindow* window, double xpos, double ypos);
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void processInput(GLFWwindow *window);
 
-// unsigned int texture0, texture1;
-// unsigned int frameBuffer0, frameBuffer1;
 
 int createWindow() {
-	 // glfw: initialize and configure
-    // ------------------------------
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -65,10 +77,13 @@ int createWindow() {
     }
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-    glfwSetInputMode(window, GLFW_STICKY_KEYS, 1);
+    // glfwSetInputMode(window, GLFW_STICKY_KEYS, 1);
+
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetScrollCallback(window, scroll_callback);
 
     // tell GLFW to capture our mouse
-    // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     // glad: load all OpenGL function pointers
     // ---------------------------------------
@@ -77,8 +92,6 @@ int createWindow() {
         std::cout << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
-
-    // glEnable(GL_DEPTH_TEST);
 }
 
 void loadShader() {
@@ -88,7 +101,7 @@ void loadShader() {
         ourShader.setInt("texDisk", 1);
     }
     if (D == 3) {
-        ourShader = Shader("vert3.vs", "frag3.fs"); 
+        ourShader = Shader("vert3.vs", "frag3_2.fs"); 
         ourShader.setInt("texGalaxy1", 0);
         ourShader.setInt("texDisk", 1);
     }
@@ -171,35 +184,27 @@ void loadTextureMS(const std::string& file, unsigned int& texture, unsigned int&
 // ---------------------------------------------------------------------------------------------------------
 void processInput(GLFWwindow *window)
 {
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ) {
-        rate = 0.0005;
-    }
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE ) {
-        rate = 0.0001;
-    }
-    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS ) {
-        bhx -= rate;
-    }
-    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS ) {
-        bhx += rate;
-    }
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS ) {
-        bhy += rate;
-    }
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS ) {
-        bhy -= rate;
-    }
+
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        camera.ProcessKeyboard(FORWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        camera.ProcessKeyboard(BACKWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        camera.ProcessKeyboard(LEFT, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        camera.ProcessKeyboard(RIGHT, deltaTime);
+
     if (glfwGetKey(window, GLFW_KEY_HOME) == GLFW_PRESS ) {
-        playerDistance += 10*rate;
+        playerDistance += 10*0.001;
     }
     if (glfwGetKey(window, GLFW_KEY_END) == GLFW_PRESS ) {
-        playerDistance -= 10*rate;
+        playerDistance -= 10*0.001;
     }
     if (glfwGetKey(window, GLFW_KEY_PAGE_UP) == GLFW_PRESS ) {
-        rs += rate;
+        rs += 0.001;
     }
     if (glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_PRESS ) {
-        rs -= rate;
+        rs -= 0.001;
         rs = std::max(rs, 0.01f);
     }
     if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
@@ -211,21 +216,16 @@ void processInput(GLFWwindow *window)
     }
     if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
         D = 3;
-        bhx = 0, bhy = 0;
         loadShader();
     }
     if (space_state == GLFW_RELEASE) {
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS){
             glfwSetWindowShouldClose(window, true);
         }
-        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-            active = !active;
-        }
         space_state = GLFW_PRESS;
     }
     else {
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_RELEASE &&
-            glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE &&
             glfwGetKey(window, GLFW_KEY_R) == GLFW_RELEASE &&
             glfwGetKey(window, GLFW_KEY_2) == GLFW_RELEASE &&
             glfwGetKey(window, GLFW_KEY_3) == GLFW_RELEASE) {
@@ -266,6 +266,10 @@ int start()
 
     while (!glfwWindowShouldClose(window))
     {
+
+        float currentFrame = glfwGetTime();
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
         processInput(window);
 
         currentTime  = glfwGetTime();
@@ -291,26 +295,18 @@ int start()
         ourShader.use();
 
         float timeValue = glfwGetTime();
-        float redValue = sin(timeValue+2) / 2.0f + 0.5f;
-        float greenValue = sin(timeValue+4) / 2.0f + 0.5f;
-        float blueValue = sin(timeValue) / 2.0f + 0.5f;
-        int vertexColorLocation = glGetUniformLocation(ourShader.ID, "ourColor");
-        glUniform3f(vertexColorLocation, redValue, greenValue, blueValue);
-
         int timeLocation = glGetUniformLocation(ourShader.ID, "time");
         glUniform1f(timeLocation,timeValue);
 
         int radiusLocation = glGetUniformLocation(ourShader.ID, "rs");
         glUniform1f(radiusLocation,rs);
 
-        int activeLocation = glGetUniformLocation(ourShader.ID,"bh_active");
-        glUniform1i(activeLocation,active);
-
-        int bhLocation = glGetUniformLocation(ourShader.ID, "bh");
-        glUniform3f(bhLocation, bhx, bhy, bhz);
+        int bhLocation = glGetUniformLocation(ourShader.ID, "front");
+        glUniform3f(bhLocation, camera.Front.x, camera.Front.y, camera.Front.z);
 
         int playerLocation = glGetUniformLocation(ourShader.ID, "player");
-        glUniform3f(playerLocation, 0, 0, playerDistance);
+        glUniform3f(playerLocation, camera.Position.x, camera.Position.y, camera.Position.z);
+
 
 
         quadtree->render_leafs();
@@ -340,4 +336,34 @@ int main() {
 	}
 
 	start();
+}
+
+
+
+
+// glfw: whenever the mouse moves, this callback is called
+// -------------------------------------------------------
+void mouse_callback(GLFWwindow* window, double xpos, double ypos)
+{
+    if (firstMouse)
+    {
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
+
+    float xoffset = xpos - lastX;
+    float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
+
+    lastX = xpos;
+    lastY = ypos;
+
+    camera.ProcessMouseMovement(xoffset, yoffset);
+}
+
+// glfw: whenever the mouse scroll wheel scrolls, this callback is called
+// ----------------------------------------------------------------------
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    camera.ProcessMouseScroll(yoffset);
 }
