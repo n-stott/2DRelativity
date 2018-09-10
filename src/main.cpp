@@ -301,8 +301,12 @@ int start()
         int radiusLocation = glGetUniformLocation(ourShader.ID, "rs");
         glUniform1f(radiusLocation,rs);
 
-        int bhLocation = glGetUniformLocation(ourShader.ID, "front");
-        glUniform3f(bhLocation, camera.Front.x, camera.Front.y, camera.Front.z);
+        int frontLocation = glGetUniformLocation(ourShader.ID, "front");
+        glUniform3f(frontLocation, camera.Front.x, camera.Front.y, camera.Front.z);
+        int upLocation = glGetUniformLocation(ourShader.ID, "up");
+        glUniform3f(upLocation, camera.Up.x, camera.Up.y, camera.Up.z);
+        int rightLocation = glGetUniformLocation(ourShader.ID, "right");
+        glUniform3f(rightLocation, camera.Right.x, camera.Right.y, camera.Right.z);
 
         int playerLocation = glGetUniformLocation(ourShader.ID, "player");
         glUniform3f(playerLocation, camera.Position.x, camera.Position.y, camera.Position.z);

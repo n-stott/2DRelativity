@@ -9,7 +9,10 @@ uniform vec3 blackHole = vec3(0,0,0);
 uniform float rs = 0.1;
 
 uniform vec3 player = vec3(0., 0., -4.);
-uniform vec3 front = vec3(0., 0., 0);
+uniform vec3 front; // = vec3(0., 0., 0);
+uniform vec3 up;
+uniform vec3 right;
+
 
 uniform int N  = 20; // number of integration steps
 
