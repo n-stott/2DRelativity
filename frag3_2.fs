@@ -8,13 +8,13 @@ uniform float c = 1;
 uniform vec3 blackHole = vec3(0,0,0);
 uniform float rs = 0.1;
 
-uniform vec3 player = vec3(0., 0., -4.);
+uniform vec3 player;
 uniform vec3 front; // = vec3(0., 0., 0);
 uniform vec3 up;
 uniform vec3 right;
 
 
-uniform int N  = 20; // number of integration steps
+uniform int N  = 50; // number of integration steps
 
 uniform sampler2D texGalaxy1;
 uniform sampler2D texDisk;
@@ -160,8 +160,8 @@ void collision(inout vec3 rtp, inout int target, float r1, float r2, float theta
 	vec3 p1 = pos(r1, theta, rtp.z);
 	vec3 p2 = pos(r2, theta+dtheta, rtp.z);
 	float z = 0.1;
-	float c = cos(TWOPI*front.y);
-	float s = sin(TWOPI*front.y);
+	float c = cos(PI*front.y);
+	float s = sin(PI*front.y);
 	if ((c*p2.y-s*p2.z)*(c*p1.y-s*p1.z) <= 0 && r1 >= 2.26 && r1 <= 4) {
 	// if ((p2.y-z*p2.z)*(p1.y-z*p1.z) <= 0 && r1 >= 2.26 && r1 <= 4) {
 		rtp = p1;
@@ -303,6 +303,8 @@ void main()
 	float target = -1;
 
 	vec3 ray = vec3(position.x, position.y, -player.z/2);
+
+	// vec3 ray = position.x * right + position.y * up + front;
 	ray = normalize(ray);
 
 	vec4 rdir = raytraceFast(player, ray);
